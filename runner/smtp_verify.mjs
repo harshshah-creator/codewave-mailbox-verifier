@@ -18,7 +18,7 @@
 //   <random>@same domain     -> 550  "account that you tried to reach does not exist"
 //
 // Both domains answered truthfully and distinguished the two, which matters
-// because 82% of these prospects are on Google Workspace.
+// because most targets are on Google Workspace.
 //
 // THE ADDRESSES THEMSELVES ARE NOT WRITTEN DOWN HERE, and this file used to
 // name four of them. It is copied verbatim into a PUBLIC repository — the only
@@ -49,14 +49,14 @@ const BLOCKED_THRESHOLD = 3;
 
 /** Has this machine given up on SMTP? Read by the runner so it can say so once. */
 export const smtpBlocked = () => blockedAfter >= BLOCKED_THRESHOLD;
-// WHO THE PROBE SAYS IT IS — AND WHY IT MUST NOT SAY "CODEWAVE".
+// WHO THE PROBE SAYS IT IS — AND WHY IT MUST NOT NAME THE SENDING DOMAIN.
 //
-// The first version announced `EHLO codewave.com` and a
-// `MAIL FROM:` at that domain. That sounded polite and was actively
-// harmful: the connection comes from a GitHub runner, whose IP is not in
-// codewave.com's SPF record, so every receiving server that evaluates SPF at
-// MAIL FROM would record an SPF failure FOR CODEWAVE.COM from an unauthorised
-// address — once per prospect, every day.
+// The first version announced `EHLO <the sending domain>` and a `MAIL FROM:` at
+// that domain. That sounded polite and was actively harmful: the connection
+// comes from a CI runner, whose IP is not in that domain's SPF record, so every
+// receiving server that evaluates SPF at MAIL FROM would record an SPF FAILURE
+// for the sending domain, from an unauthorised address — once per prospect,
+// every day.
 //
 // Mail is sent through the Gmail API from Google's own IPs and is properly
 // aligned. This probe has nothing to do with that path and must not borrow its

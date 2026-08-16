@@ -1,18 +1,33 @@
-// Talking to the Marketing Agent Worker.
+// Talking to the control-plane Worker.
 //
-// One place for the base URL, the bearer token and retries, so no caller invents
-// its own. Failures here are reported with the real cause rather than an empty
+// One place for the base URL, the token and retries, so no caller invents its
+// own. Failures here are reported with the real cause rather than an empty
 // AggregateError, which is what an unhandled fetch failure looks like and which
 // costs an hour every time it happens.
 
-const BASE = process.env.AGENT_BASE
-  || "https://codewave-marketing-agent.harshshah-5d8.workers.dev";
+// THE ADDRESS COMES FROM THE ENVIRONMENT AND IS NOT WRITTEN DOWN HERE.
+//
+// It used to be a hardcoded default with AGENT_BASE as an override, which was
+// convenient right up until this file was copied into a PUBLIC repository — the
+// only free host with outbound port 25 is GitHub Actions, and unmetered minutes
+// there require a public repo. A default is not a secret, but publishing the
+// exact address of the control plane tells the internet the system exists and
+// where to knock. The token still gates every call; there is simply no reason
+// to hand out the door number as well.
+//
+// Unset is a hard failure rather than a fallback. A silent default is how a
+// runner ends up talking confidently to the wrong place — or to nowhere — and
+// reporting success either way.
+const BASE = String(process.env.AGENT_BASE || "").replace(/\/+$/, "");
 
 const TOKEN = process.env.MARKETING_AGENT_TOKEN || "";
 
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 export async function api(method, path, body, { attempts = 3 } = {}) {
+  if (!BASE) {
+    throw new Error("AGENT_BASE is not set — this runner does not know which control plane to talk to");
+  }
   if (!TOKEN) throw new Error("MARKETING_AGENT_TOKEN is not set");
   let lastError = null;
 

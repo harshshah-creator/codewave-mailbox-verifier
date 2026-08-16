@@ -31,9 +31,13 @@
 // "unknown". A "yes" is only ever returned when the tenant says the real address
 // exists AND the random one does not.
 //
-// Verified against manipalhospitals.com on 17 August: the real target returned
-// 0 (exists), a random string returned 1 (does not), and the address was
-// confirmed without any mail port.
+// Verified against a real Microsoft 365 tenant: the target address returned 0
+// (exists), a random local part on the same domain returned 1 (does not), and
+// the mailbox was confirmed without touching a mail port.
+//
+// The tenant is not named here, and neither is the address. This file is copied
+// verbatim into a public repository, so a domain in a comment is a customer
+// relationship published and indexed.
 
 const ENDPOINT = "https://login.microsoftonline.com/common/GetCredentialType";
 const TIMEOUT_MS = 10000;

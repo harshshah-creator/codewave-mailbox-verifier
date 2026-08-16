@@ -33,8 +33,8 @@
 import net from "node:net";
 
 // Google's inbound MX. Chosen because it is the most reliably reachable mail
-// server on the internet and because 82% of these prospects are on Workspace, so
-// it is the exact server the real probes will be talking to.
+// server on the internet, and because most targets are on Google Workspace — so
+// it is the same server the real probes will mostly be talking to.
 const TARGET = "gmail-smtp-in.l.google.com";
 const PORT = 25;
 

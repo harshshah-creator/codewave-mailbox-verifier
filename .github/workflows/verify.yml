@@ -81,11 +81,23 @@ jobs:
       - name: Can this host open port 25?
         env:
           MARKETING_AGENT_TOKEN: ${{ secrets.MARKETING_AGENT_TOKEN }}
+          # WHICH CONTROL PLANE, and why it is a secret rather than written down.
+          # runner/api.mjs deliberately carries no address of its own: this
+          # repository is public, and a default in the code would publish the
+          # exact URL of the control plane to anyone reading it. A secret is
+          # also masked in these logs, which a repository variable is not.
+          AGENT_BASE: ${{ secrets.AGENT_BASE }}
         run: node runner/port25-check.mjs
 
       - name: Verify every unsent address
         env:
           MARKETING_AGENT_TOKEN: ${{ secrets.MARKETING_AGENT_TOKEN }}
+          # WHICH CONTROL PLANE, and why it is a secret rather than written down.
+          # runner/api.mjs deliberately carries no address of its own: this
+          # repository is public, and a default in the code would publish the
+          # exact URL of the control plane to anyone reading it. A secret is
+          # also masked in these logs, which a repository variable is not.
+          AGENT_BASE: ${{ secrets.AGENT_BASE }}
           # THE SCHEDULED RUN APPLIES. A schedule passes no inputs, so a naive
           # `inputs.apply` reads false every morning: the sweep would check every
           # address, correctly find the dead ones, print "Report only" and throw
