@@ -1,0 +1,100 @@
+# Ask every queued address's own mail server whether it exists.
+#
+# WHY THIS REPOSITORY EXISTS, AND WHY IT IS PUBLIC
+#
+# The check is SMTP RCPT TO: open a connection to the domain's own MX, ask
+# whether it would accept mail for this address, and QUIT before sending
+# anything. It is the only free check that works for EVERY provider — Google,
+# Microsoft, Zoho, self-hosted alike — because it asks the server that would
+# actually receive the mail.
+#
+# It needs outbound port 25, and almost nothing has it. Four hosts were measured
+# on 17 August 2026:
+#
+#   laptop              BLOCKED   the ISP filters 25, 587 and 465, v4 and v6
+#   CircleCI            BLOCKED   no banner in 6s; matches BreakSPF (NDSS 2024),
+#                                 which found CircleCI alone among CI hosts
+#                                 restricts outbound 25
+#   Cloudflare Workers  FORBIDDEN "Connections to port 25 are prohibited"
+#   GitHub Actions      OPEN      real 250s and 550s from Google and Microsoft
+#
+# So GitHub Actions is the only host that can do it. But the private repository
+# this code came from sits behind an exhausted Actions allowance, and a spending
+# limit stops private-repo jobs from starting at all.
+#
+# Public repositories are the exception, and that is the entire reason for this
+# repo: standard GitHub-hosted runners are FREE AND UNLIMITED on public
+# repositories, and spending limits govern private repositories only. The
+# verification therefore runs here, for nothing, without a ceiling to exhaust.
+#
+# WHAT IS SAFE TO HAVE PUBLIC, AND WHAT IS DELIBERATELY NOT HERE
+#   here          a generic SMTP probe, a generic HTTPS probe, an HTTP client.
+#   NOT here      campaign strategy, prospect data, drafts, briefs, the model
+#                 prompts, the send logic. None of it is needed to ask a mail
+#                 server a question.
+#   the token     a repository SECRET, never in the code. It is the only
+#                 credential this repo touches.
+#
+# LOGS ARE WORLD-READABLE HERE, so PUBLIC_LOGS is on: the sweep prints the
+# domain and the length of the local part, never the address. Actions logs
+# persist and are indexed, and that is not a leak that could be withdrawn.
+name: Verify mailboxes
+
+on:
+  # Manual, scheduled and Worker-triggered. DELIBERATELY NOT pull_request:
+  # anyone can open a PR against a public repository, and while GitHub withholds
+  # secrets from fork PRs by default, the safest version of that rule is to have
+  # no trigger that a stranger can fire at all.
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write the verdicts back to the queue (otherwise report only)"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [verify]
+  schedule:
+    # Early morning IST, before the day's sending. An address that cannot
+    # receive mail should be found before it takes a send slot, not after it
+    # bounces — bounces are what get a sending domain classified as spam.
+    - cron: "45 1 * * *"
+
+# Least privilege. This job reads its own checkout and talks to the Worker over
+# HTTPS; it has no reason to be able to write anything back to the repository.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # FIRST, AND SEPARATELY, so the answer is visible even when the sweep
+      # itself has nothing to do. If GitHub ever starts blocking 25 the whole
+      # premise of this repository is gone, and that should be one obvious line
+      # in the log rather than a slow drift into every address reading "unknown".
+      - name: Can this host open port 25?
+        env:
+          MARKETING_AGENT_TOKEN: ${{ secrets.MARKETING_AGENT_TOKEN }}
+        run: node runner/port25-check.mjs
+
+      - name: Verify every unsent address
+        env:
+          MARKETING_AGENT_TOKEN: ${{ secrets.MARKETING_AGENT_TOKEN }}
+          # THE SCHEDULED RUN APPLIES. A schedule passes no inputs, so a naive
+          # `inputs.apply` reads false every morning: the sweep would check every
+          # address, correctly find the dead ones, print "Report only" and throw
+          # the verdicts away. That happened on 13 August — six non-existent
+          # addresses found at 09:23 and discarded, while one of them had already
+          # hard-bounced at 08:20 the same morning.
+          #
+          # A check whose result nothing reads is not a check.
+          APPLY: ${{ (github.event_name == 'schedule' || github.event_name == 'repository_dispatch') && 'true' || inputs.apply }}
+          # Non-negotiable in this repository: the logs are public.
+          PUBLIC_LOGS: "true"
+        run: node runner/verify-queue.mjs

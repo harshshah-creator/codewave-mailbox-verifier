@@ -1,0 +1,11 @@
+{
+  "name": "codewave-mailbox-verifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Asks a mail server whether an address exists, before anything is sent to it.",
+  "comment": "No dependencies, on purpose. The probe is node:net and the rest is fetch, so there is no install step, no lockfile to drift and no third-party code running against a secret in a public repository.",
+  "scripts": {
+    "verify": "node runner/verify-queue.mjs",
+    "port25": "node runner/port25-check.mjs"
+  }
+}

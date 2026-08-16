@@ -1,0 +1,10 @@
+# This repository is public. Nothing that could carry a credential or a
+# prospect's details belongs in it, so the ignore list is deliberately broader
+# than the code actually produces — a file that never exists costs nothing to
+# ignore, and the one that does get created by accident is the one that matters.
+node_modules/
+.env
+.env.*
+.dev.vars
+*.log
+.DS_Store
