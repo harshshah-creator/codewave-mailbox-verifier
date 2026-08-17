@@ -54,10 +54,26 @@ on:
   repository_dispatch:
     types: [verify]
   schedule:
-    # Early morning IST, before the day's sending. An address that cannot
-    # receive mail should be found before it takes a send slot, not after it
-    # bounces — bounces are what get a sending domain classified as spam.
-    - cron: "45 1 * * *"
+    # HOURLY, WHICH ONLY BECAME REASONABLE ONCE TWO THINGS WERE TRUE.
+    #
+    # It ran once a day, at 01:45 UTC, because Actions minutes were metered and
+    # scarce. A prospect researched at 14:00 then waited until the next morning
+    # to be verified, and could not be sent to before that. Minutes are no longer
+    # scarce: this repository is public, where standard runners are free and
+    # unlimited.
+    #
+    # But cadence alone would have been a mistake. The sweep used to re-probe
+    # every unsent address on every run — fine at 138 probes a day, and
+    # indefensible at 3,300, re-asking the same servers about addresses already
+    # proven. That pattern is indistinguishable from directory enumeration and
+    # earns a blocklisted runner IP, which would remove the check entirely. So
+    # verify-queue.mjs now skips what is already settled and backs off on what is
+    # not, and an hourly run asks only about genuinely new or genuinely stale
+    # addresses — usually a handful, often none.
+    #
+    # :25 past, which collides with none of the Worker's crons (:05 grid, :37,
+    # :47, :53) and leaves the sweep finished well before the next hour's sends.
+    - cron: "25 * * * *"
 
 # Least privilege. This job reads its own checkout and talks to the Worker over
 # HTTPS; it has no reason to be able to write anything back to the repository.

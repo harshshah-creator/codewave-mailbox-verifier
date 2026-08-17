@@ -76,10 +76,58 @@ async function main() {
   }).catch((error) => log(`  (could not record capability: ${error.message})`));
 
   const reports = (await requireOk("GET", "/agent/reports")).reports || [];
-  const pending = reports.filter((r) =>
+  const unsent = reports.filter((r) =>
     !r.sentAt && r.email?.recipient && !["closed", "sent"].includes(String(r.status || "")));
 
-  log(`${pending.length} unsent address(es) to check. apply=${APPLY}`);
+  // ASK EACH SERVER ONCE, NOT EVERY HOUR.
+  //
+  // This used to check every unsent address on every run, which was harmless at
+  // one run a day — 138 probes — and becomes indefensible the moment the sweep
+  // runs hourly: 3,300 probes a day, re-asking the same mail servers about the
+  // same 77 addresses that were already proven. That is not merely wasteful. A
+  // stream of repeated RCPT TO for known-good addresses is indistinguishable
+  // from directory enumeration, and the reply is a blocklisted runner IP — which
+  // would take the check away from everyone, permanently, to learn nothing.
+  //
+  // So the queue is filtered by what is already known:
+  //   yes       never asked again. A live mailbox does not need re-proving, and
+  //             if it dies later the bounce says so more cheaply than a probe.
+  //   no        already quarantined and out of this list; skipped for safety.
+  //   unknown   retried, but with a widening gap and a stop. Greylisting clears
+  //             in minutes and a catch-all never will, so the same answer
+  //             arriving five times is information about the server, not the
+  //             address, and continuing to ask is just noise.
+  //   unchecked always, immediately. This is the case hourly exists to serve: a
+  //             prospect researched at 14:00 is verified by 15:00 rather than
+  //             waiting for tomorrow's sweep.
+  const RETRY_AFTER_HOURS = 6;
+  const GIVE_UP_AFTER_ATTEMPTS = 5;
+  const now = Date.now();
+  const skipped = { proven: 0, waiting: 0, exhausted: 0 };
+
+  const pending = unsent.filter((r) => {
+    const check = r.mailboxCheck;
+    if (!check?.checkedAt) return true;
+    if (check.exists === "yes" || check.exists === "no") { skipped.proven += 1; return false; }
+
+    const attempts = Number(check.attempts || 0);
+    if (attempts >= GIVE_UP_AFTER_ATTEMPTS) { skipped.exhausted += 1; return false; }
+
+    // Widening gap: 6h, 12h, 18h… so a stubborn domain is asked less and less
+    // rather than at the same rate forever.
+    const waitMs = RETRY_AFTER_HOURS * Math.max(1, attempts) * 3600 * 1000;
+    const since = now - Date.parse(check.checkedAt);
+    if (Number.isFinite(since) && since < waitMs) { skipped.waiting += 1; return false; }
+    return true;
+  });
+
+  log(`${unsent.length} unsent; ${pending.length} to check now `
+    + `(${skipped.proven} already settled, ${skipped.waiting} waiting out a retry gap, `
+    + `${skipped.exhausted} asked enough times). apply=${APPLY}`);
+  if (!pending.length) {
+    log("Nothing to ask anybody. Done.");
+    return;
+  }
 
   const tally = { yes: 0, no: 0, unknown: 0 };
   const changed = [];
